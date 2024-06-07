@@ -9,39 +9,22 @@ use fvm::kernel::{
     SelfOps, SendOps, SyscallHandler, UpgradeOps,
 };
 use fvm::syscalls::Linker;
+use fvm::syscalls::Memory;
 use fvm::DefaultKernel;
+use fvm_ipld_encoding::RawBytes;
 use fvm_shared::clock::ChainEpoch;
 use fvm_shared::randomness::RANDOMNESS_LENGTH;
 use fvm_shared::sys::out::network::NetworkContext;
 use fvm_shared::sys::out::vm::MessageContext;
 use fvm_shared::{address::Address, econ::TokenAmount, ActorID, MethodNum};
+use std::cmp;
+use std::io::Read;
 
 use ambassador::Delegate;
 use cid::Cid;
 
-// we define a single custom syscall which simply doubles the input
 pub trait CustomKernel: Kernel {
-    fn my_custom_syscall(
-        &self,
-        i1: u64,
-        i2: u64,
-        i3: u64,
-        // i4: u64,
-        // i5: u64,
-        // i6: u64,
-        // i7: u64,
-        // i8: u64,
-        // i9: u64,
-        c1: u64,
-        c2: u64,
-        c3: u64,
-        // c4: u64,
-        // c5: u64,
-        // c6: u64,
-        // c7: u64,
-        // c8: u64,
-        // c9: u64,
-    ) -> Result<u64>;
+    fn my_custom_syscall(&self, data: &[u8], conv: &[u8]) -> Result<Vec<Vec<i128>>>;
 }
 
 // our custom kernel extends the filecoin kernel
@@ -64,34 +47,50 @@ where
     C: CallManager,
     CustomKernelImpl<C>: Kernel,
 {
-    fn my_custom_syscall(
-        &self,
-        i1: u64,
-        i2: u64,
-        i3: u64,
-        // i4: u64,
-        // i5: u64,
-        // i6: u64,
-        // i7: u64,
-        // i8: u64,
-        // i9: u64,
-        c1: u64,
-        c2: u64,
-        c3: u64,
-        // c4: u64,
-        // c5: u64,
-        // c6: u64,
-        // c7: u64,
-        // c8: u64,
-        // c9: u64,
-    ) -> Result<u64> {
+    fn my_custom_syscall(&self, data: &[u8], conv: &[u8]) -> Result<Vec<Vec<i128>>> {
         // Here we have access to the Kernel structure and can call
         // any of its methods, send messages, etc.
 
         // We can also run an external program, link to any rust library
         // access the network, etc.
-        let result = i1 * c1 + i2 * c2 + i3 * c3; //+ i4 * c4 + i5 * c5 + i6 * c6 + i7 * c7 + i8 * c8 + i9 * c9;
-        Ok(result)
+        let deserialized_data: Vec<Vec<i128>> = match fvm_ipld_encoding::RawBytes::deserialize(
+            &fvm_ipld_encoding::RawBytes::new(Vec::from(data)),
+        ) {
+            Err(e) => {
+                vec![vec![0]]
+            }
+            Ok(r) => r,
+        };
+
+        let deserialized_conv: Vec<Vec<i128>> = match fvm_ipld_encoding::RawBytes::deserialize(
+            &fvm_ipld_encoding::RawBytes::new(Vec::from(conv)),
+        ) {
+            Err(e) => {
+                vec![vec![0]]
+            }
+            Ok(r) => r,
+        };
+
+        let mut output: Vec<Vec<i128>> =
+            vec![
+                vec![0; deserialized_data[0].len() - deserialized_conv[0].len() + 1];
+                deserialized_data.len() - deserialized_conv.len() + 1
+            ];
+
+        for i in 0..(deserialized_data.len() - deserialized_conv.len() + 1) {
+            for j in 0..(deserialized_data[0].len() - deserialized_conv[0].len() + 1) {
+                let mut sum = 0;
+                for ci in 0..(deserialized_conv.len()) {
+                    for cj in 0..(deserialized_conv[0].len()) {
+                        sum += deserialized_conv[ci][cj] * deserialized_data[i + ci][j + cj];
+                    }
+                }
+
+                output[i][j] = sum;
+            }
+        }
+
+        Ok(output)
     }
 }
 
@@ -172,24 +171,33 @@ where
 
 pub fn my_custom_syscall(
     context: fvm::syscalls::Context<'_, impl CustomKernel>,
-    i1: u64,
-    i2: u64,
-    i3: u64,
-    // i4: u64,
-    // i5: u64,
-    // i6: u64,
-    // i7: u64,
-    // i8: u64,
-    // i9: u64,
-    c1: u64,
-    c2: u64,
-    c3: u64,
-    // c4: u64,
-    // c5: u64,
-    // c6: u64,
-    // c7: u64,
-    // c8: u64,
-    // c9: u64,
-) -> Result<u64> {
-    context.kernel.my_custom_syscall(i1, i2, i3, c1, c2, c3)
+    data_offset: u32,
+    data_length: u32,
+    output_offset: u32,
+    output_length: u32,
+    conv_offset: u32,
+    conv_length: u32,
+) -> Result<u32> {
+    // Check the digest bounds first so we don't do any work if they're incorrect.
+    context.memory.check_bounds(output_offset, output_length)?;
+
+    let array = context
+        .memory
+        .try_slice(data_offset as u32, data_length as u32)?;
+
+    let conv_array = context.memory.try_slice(conv_offset, conv_length)?;
+    let result = context.kernel.my_custom_syscall(array, conv_array)?;
+
+    let ser_result_raw = match fvm_ipld_encoding::RawBytes::serialize(result) {
+        Err(e) => RawBytes::new(vec![0]),
+        Ok(r) => r,
+    };
+
+    let ser_result: &[u8] = ser_result_raw.bytes();
+
+    let output = context.memory.try_slice_mut(output_offset, output_length)?;
+    let length = cmp::min(output.len(), ser_result.len());
+    output[..length].copy_from_slice(ser_result);
+
+    Ok(length as u32)
 }

@@ -133,35 +133,13 @@ where
         }
 
         {
-            let params = fvm_ipld_encoding::RawBytes::serialize(
-                fendermint_actor_customsyscall::InvokeParams {
-                    i1: 1,
-                    i2: 1,
-                    i3: 1,
-                    // i4: 1,
-                    // i5: 1,
-                    // i6: 1,
-                    // i7: 1,
-                    // i8: 1,
-                    // i9: 1,
-                    c1: 2,
-                    c2: 2,
-                    c3: 2,
-                    // c4: 2,
-                    // c5: 2,
-                    // c6: 2,
-                    // c7: 2,
-                    // c8: 2,
-                    // c9: 2,
-                },
-            )?;
             let msg = FvmMessage {
                 from: system::SYSTEM_ACTOR_ADDR,
                 to: customsyscall::CUSTOMSYSCALL_ACTOR_ADDR,
                 sequence: height as u64,
                 gas_limit,
                 method_num: fendermint_actor_customsyscall::Method::Invoke as u64,
-                params,
+                params: Default::default(),
                 value: Default::default(),
                 version: Default::default(),
                 gas_fee_cap: Default::default(),
@@ -174,8 +152,8 @@ where
                 anyhow::bail!("failed to apply customsyscall message: {}", err);
             }
 
-            let val: u64 = apply_ret.msg_receipt.return_data.deserialize().unwrap();
-            println!("customsyscall actor returned: {}", val);
+            let val: [u8; 9] = apply_ret.msg_receipt.return_data.deserialize().unwrap();
+            println!("customsyscall actor returned: {:?}", val);
 
             println!(
                 "customsyscall actor returned: {}",
