@@ -3,7 +3,7 @@
 
 use anyhow::Context;
 use async_trait::async_trait;
-use std::collections::HashMap;
+use std::{collections::HashMap, slice::from_raw_parts};
 
 use fendermint_vm_actor_interface::{chainmetadata, cron, customsyscall, system};
 use fvm::executor::ApplyRet;
@@ -152,13 +152,20 @@ where
                 anyhow::bail!("failed to apply customsyscall message: {}", err);
             }
 
-            let val: [u8; 9] = apply_ret.msg_receipt.return_data.deserialize().unwrap();
-            println!("customsyscall actor returned: {:?}", val);
-
-            println!(
+            let val: [u8; 24] = apply_ret.msg_receipt.return_data.deserialize().unwrap();
+            tracing::info!(
                 "customsyscall actor returned: {}",
-                system::SYSTEM_ACTOR_ADDR
+                customsyscall::CUSTOMSYSCALL_ACTOR_ADDR
             );
+
+            tracing::info!("customsyscall actor returned: {:?}", val);
+
+            let output: Vec<i64> = fvm_ipld_encoding::RawBytes::deserialize(
+                &fvm_ipld_encoding::RawBytes::new(Vec::from(val)),
+            )
+            .unwrap();
+
+            tracing::info!("decoded output vector is: {:?}", output);
         }
 
         let ret = FvmApplyRet {

@@ -59,6 +59,7 @@ pin-project = { workspace = true }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 ambassador = { workspace = true }
+smartcore = { workspace = true }
 
 arbitrary = { workspace = true, optional = true }
 quickcheck = { workspace = true, optional = true }

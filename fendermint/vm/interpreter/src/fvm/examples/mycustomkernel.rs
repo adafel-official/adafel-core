@@ -9,22 +9,23 @@ use fvm::kernel::{
     SelfOps, SendOps, SyscallHandler, UpgradeOps,
 };
 use fvm::syscalls::Linker;
-use fvm::syscalls::Memory;
 use fvm::DefaultKernel;
-use fvm_ipld_encoding::RawBytes;
 use fvm_shared::clock::ChainEpoch;
 use fvm_shared::randomness::RANDOMNESS_LENGTH;
 use fvm_shared::sys::out::network::NetworkContext;
 use fvm_shared::sys::out::vm::MessageContext;
 use fvm_shared::{address::Address, econ::TokenAmount, ActorID, MethodNum};
+use smartcore::linalg::basic::matrix::DenseMatrix;
+use smartcore::linear::linear_regression::LinearRegression;
+use smartcore::linear::linear_regression::LinearRegressionParameters;
+use smartcore::linear::linear_regression::LinearRegressionSolverName;
 use std::cmp;
-use std::io::Read;
 
 use ambassador::Delegate;
 use cid::Cid;
 
 pub trait CustomKernel: Kernel {
-    fn my_custom_syscall(&self, data: &[u8], conv: &[u8]) -> Result<Vec<Vec<i128>>>;
+    fn my_custom_syscall(&self, data: &[u8], conv: &[u8]) -> Result<Vec<i64>>;
 }
 
 // our custom kernel extends the filecoin kernel
@@ -47,50 +48,64 @@ where
     C: CallManager,
     CustomKernelImpl<C>: Kernel,
 {
-    fn my_custom_syscall(&self, data: &[u8], conv: &[u8]) -> Result<Vec<Vec<i128>>> {
+    fn my_custom_syscall(&self, data: &[u8], labels: &[u8]) -> Result<Vec<i64>> {
         // Here we have access to the Kernel structure and can call
         // any of its methods, send messages, etc.
 
         // We can also run an external program, link to any rust library
         // access the network, etc.
-        let deserialized_data: Vec<Vec<i128>> = match fvm_ipld_encoding::RawBytes::deserialize(
+        let deserialized_data: Vec<Vec<i64>> = fvm_ipld_encoding::RawBytes::deserialize(
             &fvm_ipld_encoding::RawBytes::new(Vec::from(data)),
-        ) {
-            Err(e) => {
-                vec![vec![0]]
-            }
-            Ok(r) => r,
-        };
+        )
+        .unwrap();
 
-        let deserialized_conv: Vec<Vec<i128>> = match fvm_ipld_encoding::RawBytes::deserialize(
-            &fvm_ipld_encoding::RawBytes::new(Vec::from(conv)),
-        ) {
-            Err(e) => {
-                vec![vec![0]]
-            }
-            Ok(r) => r,
-        };
+        let deserialized_labels: Vec<i64> = fvm_ipld_encoding::RawBytes::deserialize(
+            &fvm_ipld_encoding::RawBytes::new(Vec::from(labels)),
+        )
+        .unwrap();
 
-        let mut output: Vec<Vec<i128>> =
-            vec![
-                vec![0; deserialized_data[0].len() - deserialized_conv[0].len() + 1];
-                deserialized_data.len() - deserialized_conv.len() + 1
-            ];
+        let divisor: i64 = 100;
+        let multiplier: f64 = 100.0;
 
-        for i in 0..(deserialized_data.len() - deserialized_conv.len() + 1) {
-            for j in 0..(deserialized_data[0].len() - deserialized_conv[0].len() + 1) {
-                let mut sum = 0;
-                for ci in 0..(deserialized_conv.len()) {
-                    for cj in 0..(deserialized_conv[0].len()) {
-                        sum += deserialized_conv[ci][cj] * deserialized_data[i + ci][j + cj];
-                    }
-                }
+        // Check to prevent division by zero
+        let input_x: Vec<Vec<f64>> = deserialized_data
+            .iter()
+            .map(|inner_vec| {
+                inner_vec
+                    .iter()
+                    .map(|&x| x as f64 / divisor as f64)
+                    .collect()
+            })
+            .collect();
 
-                output[i][j] = sum;
-            }
-        }
+        let input_y: Vec<f64> = deserialized_labels
+            .iter()
+            .map(|&x| x as f64 / divisor as f64)
+            .collect();
 
-        Ok(output)
+        let x = DenseMatrix::from_2d_vec(&input_x);
+
+        let lir: LinearRegression<f64, f64, DenseMatrix<f64>, Vec<f64>> = LinearRegression::fit(
+            &x,
+            &input_y,
+            LinearRegressionParameters {
+                solver: LinearRegressionSolverName::QR,
+            },
+        )
+        .unwrap();
+
+        let model_ser = fvm_ipld_encoding::RawBytes::serialize(lir).unwrap();
+
+        let model: LinearRegression<f64, f64, DenseMatrix<f64>, Vec<f64>> =
+            fvm_ipld_encoding::RawBytes::deserialize(&model_ser).unwrap();
+
+        let prediction = model.predict(&x).unwrap();
+
+        let result: Vec<i64> = prediction
+            .iter()
+            .map(|&x| (x * multiplier) as i64)
+            .collect();
+        Ok(result)
     }
 }
 
@@ -188,14 +203,14 @@ pub fn my_custom_syscall(
     let conv_array = context.memory.try_slice(conv_offset, conv_length)?;
     let result = context.kernel.my_custom_syscall(array, conv_array)?;
 
-    let ser_result_raw = match fvm_ipld_encoding::RawBytes::serialize(result) {
-        Err(e) => RawBytes::new(vec![0]),
-        Ok(r) => r,
-    };
+    let ser_result_raw = fvm_ipld_encoding::RawBytes::serialize(result).unwrap();
 
     let ser_result: &[u8] = ser_result_raw.bytes();
 
-    let output = context.memory.try_slice_mut(output_offset, output_length)?;
+    let output = context
+        .memory
+        .try_slice_mut(output_offset, output_length)
+        .unwrap();
     let length = cmp::min(output.len(), ser_result.len());
     output[..length].copy_from_slice(ser_result);
 
