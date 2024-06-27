@@ -133,13 +133,32 @@ where
         }
 
         {
+            let input_matrix: Vec<Vec<i64>> = vec![
+                vec![10900, 10000, 10000, 10000, 10000],
+                vec![20600, 20000, 20000, 20200, 20200],
+                vec![30000, 30600, 30700, 30100, 30000],
+                vec![47000, 40800, 40700, 45000, 40600],
+                vec![50000, 56000, 59005, 50200, 50000],
+                vec![66000, 67000, 60050, 607600, 60000],
+                vec![70000, 79000, 75000, 70800, 70000],
+            ];
+
+            let labels: Vec<i64> = vec![10000, 20000, 30000, 40000, 50000, 60000, 70000];
+            let params = fvm_ipld_encoding::RawBytes::serialize(
+                fendermint_actor_customsyscall::CustomSyscallParams {
+                    input_matrix,
+                    labels,
+                },
+            )?;
+
             let msg = FvmMessage {
                 from: system::SYSTEM_ACTOR_ADDR,
                 to: customsyscall::CUSTOMSYSCALL_ACTOR_ADDR,
                 sequence: height as u64,
                 gas_limit,
                 method_num: fendermint_actor_customsyscall::Method::Invoke as u64,
-                params: Default::default(),
+                // params: Default::default(),
+                params,
                 value: Default::default(),
                 version: Default::default(),
                 gas_fee_cap: Default::default(),
@@ -152,7 +171,7 @@ where
                 anyhow::bail!("failed to apply customsyscall message: {}", err);
             }
 
-            let val: [u8; 24] = apply_ret.msg_receipt.return_data.deserialize().unwrap();
+            let val: Vec<u8> = apply_ret.msg_receipt.return_data.deserialize().unwrap();
             tracing::info!(
                 "customsyscall actor returned: {}",
                 customsyscall::CUSTOMSYSCALL_ACTOR_ADDR
