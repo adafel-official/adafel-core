@@ -1,6 +1,6 @@
 [package]
-name = "fendermint_actor_customsyscall"
-description = "Test actor for demonstrating calling custom syscalls"
+name = "fendermint_actor_machinelearning"
+description = "Actor for executing machine learning tasks"
 license.workspace = true
 edition.workspace = true
 authors.workspace = true

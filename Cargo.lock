@@ -2834,22 +2834,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fendermint_actor_customsyscall"
-version = "0.1.0"
-dependencies = [
- "cid",
- "fil_actors_runtime",
- "frc42_dispatch",
- "fvm_ipld_encoding",
- "fvm_sdk",
- "fvm_shared",
- "num-derive 0.3.3",
- "num-traits",
- "serde",
- "serde_tuple",
-]
-
-[[package]]
 name = "fendermint_actor_eam"
 version = "0.1.0"
 dependencies = [
@@ -2871,14 +2855,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "fendermint_actor_machinelearning"
+version = "0.1.0"
+dependencies = [
+ "cid",
+ "fil_actors_runtime",
+ "frc42_dispatch",
+ "fvm_ipld_encoding",
+ "fvm_sdk",
+ "fvm_shared",
+ "num-derive 0.3.3",
+ "num-traits",
+ "serde",
+ "serde_tuple",
+]
+
+[[package]]
 name = "fendermint_actors"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "cid",
  "fendermint_actor_chainmetadata",
- "fendermint_actor_customsyscall",
  "fendermint_actor_eam",
+ "fendermint_actor_machinelearning",
  "fil_actor_bundler",
  "fil_actors_runtime",
  "fvm_ipld_blockstore",
@@ -3352,8 +3352,8 @@ dependencies = [
  "cid",
  "ethers",
  "fendermint_actor_chainmetadata",
- "fendermint_actor_customsyscall",
  "fendermint_actor_eam",
+ "fendermint_actor_machinelearning",
  "fendermint_actors",
  "fendermint_crypto",
  "fendermint_eth_hardhat",

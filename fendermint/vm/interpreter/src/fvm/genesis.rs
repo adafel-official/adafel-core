@@ -15,7 +15,7 @@ use fendermint_vm_actor_interface::diamond::{EthContract, EthContractMap};
 use fendermint_vm_actor_interface::eam::EthAddress;
 use fendermint_vm_actor_interface::ipc::IPC_CONTRACTS;
 use fendermint_vm_actor_interface::{
-    account, burntfunds, chainmetadata, cron, customsyscall, eam, init, ipc, reward, system,
+    account, burntfunds, chainmetadata, cron, eam, init, ipc, machinelearning, reward, system,
     EMPTY_ARR,
 };
 use fendermint_vm_core::{chainid, Timestamp};
@@ -251,8 +251,8 @@ where
         // Initialize the customsyscall actor which gives an example of calling a custom syscall
         state
             .create_custom_actor(
-                fendermint_actor_customsyscall::CUSTOMSYSCALL_ACTOR_NAME,
-                customsyscall::CUSTOMSYSCALL_ACTOR_ID,
+                fendermint_actor_machinelearning::MACHINELEARNING_ACTOR_NAME,
+                machinelearning::MACHINELEARNING_ACTOR_ID,
                 &EMPTY_ARR,
                 TokenAmount::zero(),
                 None,

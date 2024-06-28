@@ -10,6 +10,7 @@ use fvm::kernel::{
 };
 use fvm::syscalls::Linker;
 use fvm::DefaultKernel;
+use fvm_ipld_encoding::RawBytes;
 use fvm_shared::clock::ChainEpoch;
 use fvm_shared::randomness::RANDOMNESS_LENGTH;
 use fvm_shared::sys::out::network::NetworkContext;
@@ -24,11 +25,11 @@ use std::cmp;
 use ambassador::Delegate;
 use cid::Cid;
 
-pub trait CustomKernel: Kernel {
-    fn my_custom_syscall(&self, data: &[u8], conv: &[u8]) -> Result<Vec<i64>>;
+pub trait MLSyscallKernel: Kernel {
+    fn train_linear_regression_syscall(&self, data: &[u8], label: &[u8]) -> Result<RawBytes>;
 }
 
-// our custom kernel extends the filecoin kernel
+// our mlsyscall kernel extends the filecoin kernel
 #[derive(Delegate)]
 #[delegate(IpldBlockOps, where = "C: CallManager")]
 #[delegate(ActorOps, where = "C: CallManager")]
@@ -39,16 +40,16 @@ pub trait CustomKernel: Kernel {
 #[delegate(NetworkOps, where = "C: CallManager")]
 #[delegate(RandomnessOps, where = "C: CallManager")]
 #[delegate(SelfOps, where = "C: CallManager")]
-#[delegate(SendOps<K>, generics = "K", where = "K: CustomKernel")]
-#[delegate(UpgradeOps<K>, generics = "K", where = "K: CustomKernel")]
-pub struct CustomKernelImpl<C>(pub DefaultKernel<C>);
+#[delegate(SendOps<K>, generics = "K", where = "K: MLSyscallKernel")]
+#[delegate(UpgradeOps<K>, generics = "K", where = "K: MLSyscallKernel")]
+pub struct MLSyscallKernelImpl<C>(pub DefaultKernel<C>);
 
-impl<C> CustomKernel for CustomKernelImpl<C>
+impl<C> MLSyscallKernel for MLSyscallKernelImpl<C>
 where
     C: CallManager,
-    CustomKernelImpl<C>: Kernel,
+    MLSyscallKernelImpl<C>: Kernel,
 {
-    fn my_custom_syscall(&self, data: &[u8], labels: &[u8]) -> Result<Vec<i64>> {
+    fn train_linear_regression_syscall(&self, data: &[u8], labels: &[u8]) -> Result<RawBytes> {
         // Here we have access to the Kernel structure and can call
         // any of its methods, send messages, etc.
 
@@ -96,20 +97,21 @@ where
 
         let model_ser = fvm_ipld_encoding::RawBytes::serialize(lir).unwrap();
 
-        let model: LinearRegression<f64, f64, DenseMatrix<f64>, Vec<f64>> =
-            fvm_ipld_encoding::RawBytes::deserialize(&model_ser).unwrap();
+        // let model: LinearRegression<f64, f64, DenseMatrix<f64>, Vec<f64>> =
+        //     fvm_ipld_encoding::RawBytes::deserialize(&model_ser).unwrap();
 
-        let prediction = model.predict(&x).unwrap();
+        // let prediction = model.predict(&x).unwrap();
 
-        let result: Vec<i64> = prediction
-            .iter()
-            .map(|&x| (x * multiplier) as i64)
-            .collect();
-        Ok(result)
+        // let result: Vec<i64> = prediction
+        //     .iter()
+        //     .map(|&x| (x * multiplier) as i64)
+        //     .collect();
+        // Ok(result)
+        Ok(model_ser)
     }
 }
 
-impl<C> Kernel for CustomKernelImpl<C>
+impl<C> Kernel for MLSyscallKernelImpl<C>
 where
     C: CallManager,
 {
@@ -132,7 +134,7 @@ where
         value_received: TokenAmount,
         read_only: bool,
     ) -> Self {
-        CustomKernelImpl(DefaultKernel::new(
+        MLSyscallKernelImpl(DefaultKernel::new(
             mgr,
             blocks,
             caller,
@@ -160,9 +162,9 @@ where
     }
 }
 
-impl<K> SyscallHandler<K> for CustomKernelImpl<K::CallManager>
+impl<K> SyscallHandler<K> for MLSyscallKernelImpl<K::CallManager>
 where
-    K: CustomKernel
+    K: MLSyscallKernel
         + ActorOps
         + SendOps
         + UpgradeOps
@@ -178,14 +180,18 @@ where
     fn link_syscalls(linker: &mut Linker<K>) -> anyhow::Result<()> {
         DefaultKernel::<K::CallManager>::link_syscalls(linker)?;
 
-        linker.link_syscall("my_custom_kernel", "my_custom_syscall", my_custom_syscall)?;
+        linker.link_syscall(
+            "mlsyscall_kernel",
+            "train_linear_regression_syscall",
+            train_linear_regression_syscall,
+        )?;
 
         Ok(())
     }
 }
 
-pub fn my_custom_syscall(
-    context: fvm::syscalls::Context<'_, impl CustomKernel>,
+pub fn train_linear_regression_syscall(
+    context: fvm::syscalls::Context<'_, impl MLSyscallKernel>,
     data_offset: u32,
     data_length: u32,
     output_offset: u32,
@@ -201,9 +207,11 @@ pub fn my_custom_syscall(
         .try_slice(data_offset as u32, data_length as u32)?;
 
     let conv_array = context.memory.try_slice(conv_offset, conv_length)?;
-    let result = context.kernel.my_custom_syscall(array, conv_array)?;
+    let ser_result_raw = context
+        .kernel
+        .train_linear_regression_syscall(array, conv_array)?;
 
-    let ser_result_raw = fvm_ipld_encoding::RawBytes::serialize(result).unwrap();
+    // let ser_result_raw = fvm_ipld_encoding::RawBytes::serialize(result).unwrap();
 
     let ser_result: &[u8] = ser_result_raw.bytes();
 

@@ -3,10 +3,10 @@
 use fvm_ipld_encoding::tuple::{Deserialize_tuple, Serialize_tuple};
 use num_derive::FromPrimitive;
 
-pub const CUSTOMSYSCALL_ACTOR_NAME: &str = "customsyscall";
+pub const MACHINELEARNING_ACTOR_NAME: &str = "machinelearning";
 
 #[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
-pub struct CustomSyscallParams {
+pub struct TrainLinearRegressionParams {
     pub input_matrix: Vec<Vec<i64>>,
     pub labels: Vec<i64>,
 }
@@ -14,5 +14,5 @@ pub struct CustomSyscallParams {
 #[derive(FromPrimitive)]
 #[repr(u64)]
 pub enum Method {
-    Invoke = frc42_dispatch::method_hash!("Invoke"),
+    TrainLinearRegression = frc42_dispatch::method_hash!("TrainLinearRegression"),
 }

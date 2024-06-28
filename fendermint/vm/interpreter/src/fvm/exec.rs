@@ -5,10 +5,12 @@ use anyhow::Context;
 use async_trait::async_trait;
 use std::{collections::HashMap, slice::from_raw_parts};
 
-use fendermint_vm_actor_interface::{chainmetadata, cron, customsyscall, system};
+use fendermint_vm_actor_interface::{chainmetadata, cron, machinelearning, system};
 use fvm::executor::ApplyRet;
 use fvm_ipld_blockstore::Blockstore;
 use fvm_shared::{address::Address, ActorID, MethodNum, BLOCK_GAS_LIMIT};
+use smartcore::linalg::basic::matrix::DenseMatrix;
+use smartcore::linear::linear_regression::LinearRegression;
 use tendermint_rpc::Client;
 
 use crate::ExecInterpreter;
@@ -134,18 +136,29 @@ where
 
         {
             let input_matrix: Vec<Vec<i64>> = vec![
-                vec![10900, 10000, 10000, 10000, 10000],
-                vec![20600, 20000, 20000, 20200, 20200],
-                vec![30000, 30600, 30700, 30100, 30000],
-                vec![47000, 40800, 40700, 45000, 40600],
-                vec![50000, 56000, 59005, 50200, 50000],
-                vec![66000, 67000, 60050, 607600, 60000],
-                vec![70000, 79000, 75000, 70800, 70000],
+                vec![234, 235, 159, 107, 1947, 60],
+                vec![259, 232, 145, 108, 1948, 61],
+                vec![258, 368, 161, 109, 1949, 60],
+                vec![284, 335, 165, 110, 1950, 61],
+                vec![328, 209, 309, 112, 1951, 63],
+                vec![346, 193, 359, 113, 1952, 63],
+                vec![365, 187, 354, 115, 1953, 64],
+                vec![363, 357, 335, 116, 1954, 63],
+                vec![397, 290, 304, 117, 1955, 66],
+                vec![419, 282, 285, 118, 1956, 67],
+                vec![442, 293, 279, 120, 1957, 68],
+                vec![444, 468, 263, 121, 1958, 66],
+                vec![482, 381, 255, 123, 1959, 68],
+                vec![502, 393, 251, 125, 1960, 69],
+                vec![518, 480, 257, 127, 1961, 69],
+                vec![554, 400, 282, 130, 1962, 70],
             ];
 
-            let labels: Vec<i64> = vec![10000, 20000, 30000, 40000, 50000, 60000, 70000];
+            let labels: Vec<i64> = vec![
+                83, 88, 88, 89, 96, 98, 99, 100, 101, 104, 108, 110, 112, 114, 115, 116,
+            ];
             let params = fvm_ipld_encoding::RawBytes::serialize(
-                fendermint_actor_customsyscall::CustomSyscallParams {
+                fendermint_actor_machinelearning::TrainLinearRegressionParams {
                     input_matrix,
                     labels,
                 },
@@ -153,11 +166,10 @@ where
 
             let msg = FvmMessage {
                 from: system::SYSTEM_ACTOR_ADDR,
-                to: customsyscall::CUSTOMSYSCALL_ACTOR_ADDR,
+                to: machinelearning::MACHINELEARNING_ACTOR_ADDR,
                 sequence: height as u64,
                 gas_limit,
-                method_num: fendermint_actor_customsyscall::Method::Invoke as u64,
-                // params: Default::default(),
+                method_num: fendermint_actor_machinelearning::Method::TrainLinearRegression as u64,
                 params,
                 value: Default::default(),
                 version: Default::default(),
@@ -173,18 +185,17 @@ where
 
             let val: Vec<u8> = apply_ret.msg_receipt.return_data.deserialize().unwrap();
             tracing::info!(
-                "customsyscall actor returned: {}",
-                customsyscall::CUSTOMSYSCALL_ACTOR_ADDR
+                "machinelearning actor returned: {}",
+                machinelearning::MACHINELEARNING_ACTOR_ADDR
             );
 
             tracing::info!("customsyscall actor returned: {:?}", val);
 
-            let output: Vec<i64> = fvm_ipld_encoding::RawBytes::deserialize(
-                &fvm_ipld_encoding::RawBytes::new(Vec::from(val)),
-            )
-            .unwrap();
+            let output: LinearRegression<f64, f64, DenseMatrix<f64>, Vec<f64>> =
+                fvm_ipld_encoding::RawBytes::deserialize(&fvm_ipld_encoding::RawBytes::new(val))
+                    .unwrap();
 
-            tracing::info!("decoded output vector is: {:?}", output);
+            tracing::info!("decoded output is: {:?}", output);
         }
 
         let ret = FvmApplyRet {

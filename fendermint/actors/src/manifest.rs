@@ -3,8 +3,8 @@
 use anyhow::{anyhow, Context};
 use cid::Cid;
 use fendermint_actor_chainmetadata::CHAINMETADATA_ACTOR_NAME;
-use fendermint_actor_customsyscall::CUSTOMSYSCALL_ACTOR_NAME;
 use fendermint_actor_eam::IPC_EAM_ACTOR_NAME;
+use fendermint_actor_machinelearning::MACHINELEARNING_ACTOR_NAME;
 use fvm_ipld_blockstore::Blockstore;
 use fvm_ipld_encoding::CborStore;
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ use std::collections::HashMap;
 pub const REQUIRED_ACTORS: &[&str] = &[
     CHAINMETADATA_ACTOR_NAME,
     IPC_EAM_ACTOR_NAME,
-    CUSTOMSYSCALL_ACTOR_NAME,
+    MACHINELEARNING_ACTOR_NAME,
 ];
 
 /// A mapping of internal actor CIDs to their respective types.
