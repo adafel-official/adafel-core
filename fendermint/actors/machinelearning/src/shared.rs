@@ -11,8 +11,15 @@ pub struct TrainLinearRegressionParams {
     pub labels: Vec<i64>,
 }
 
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct PredictLinearRegressionParams {
+    pub input_matrix: Vec<Vec<i64>>,
+    pub model: Vec<u8>,
+}
+
 #[derive(FromPrimitive)]
 #[repr(u64)]
 pub enum Method {
     TrainLinearRegression = frc42_dispatch::method_hash!("TrainLinearRegression"),
+    PredictLinearRegression = frc42_dispatch::method_hash!("PredictLinearRegression"),
 }

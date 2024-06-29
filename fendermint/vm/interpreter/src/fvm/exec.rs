@@ -185,17 +185,66 @@ where
 
             let val: Vec<u8> = apply_ret.msg_receipt.return_data.deserialize().unwrap();
             tracing::info!(
-                "machinelearning actor returned: {}",
+                "machinelearning actor address: {}",
                 machinelearning::MACHINELEARNING_ACTOR_ADDR
             );
 
-            tracing::info!("customsyscall actor returned: {:?}", val);
+            tracing::info!(
+                "mlsyscall actor train_linear_regression method returned: {:?}",
+                val
+            );
 
-            let output: LinearRegression<f64, f64, DenseMatrix<f64>, Vec<f64>> =
-                fvm_ipld_encoding::RawBytes::deserialize(&fvm_ipld_encoding::RawBytes::new(val))
-                    .unwrap();
+            // let output: LinearRegression<f64, f64, DenseMatrix<f64>, Vec<f64>> =
+            //     fvm_ipld_encoding::RawBytes::deserialize(&fvm_ipld_encoding::RawBytes::new(val))
+            //         .unwrap();
 
-            tracing::info!("decoded output is: {:?}", output);
+            // tracing::info!("decoded output is: {:?}", output);
+
+            let prediction_input_matrix: Vec<Vec<i64>> = vec![
+                vec![234, 235, 159, 107, 1947, 60],
+                vec![259, 232, 145, 108, 1948, 61],
+                vec![258, 368, 161, 109, 1949, 60],
+                vec![284, 335, 165, 110, 1950, 61],
+                vec![328, 209, 309, 112, 1951, 63],
+            ];
+
+            let predict_params = fvm_ipld_encoding::RawBytes::serialize(
+                fendermint_actor_machinelearning::PredictLinearRegressionParams {
+                    input_matrix: prediction_input_matrix,
+                    model: val,
+                },
+            )?;
+
+            let predict_msg = FvmMessage {
+                from: system::SYSTEM_ACTOR_ADDR,
+                to: machinelearning::MACHINELEARNING_ACTOR_ADDR,
+                sequence: height as u64,
+                gas_limit,
+                method_num: fendermint_actor_machinelearning::Method::PredictLinearRegression
+                    as u64,
+                params: predict_params,
+                value: Default::default(),
+                version: Default::default(),
+                gas_fee_cap: Default::default(),
+                gas_premium: Default::default(),
+            };
+
+            let (predict_apply_ret, _) = state.execute_implicit(predict_msg)?;
+
+            if let Some(err) = predict_apply_ret.failure_info {
+                anyhow::bail!(
+                    "failed to apply predict_linear_regression_syscall message: {}",
+                    err
+                );
+            }
+
+            let prediction_results: Vec<i64> = predict_apply_ret
+                .msg_receipt
+                .return_data
+                .deserialize()
+                .unwrap();
+
+            tracing::info!("the prediction results are: {:?}", prediction_results);
         }
 
         let ret = FvmApplyRet {

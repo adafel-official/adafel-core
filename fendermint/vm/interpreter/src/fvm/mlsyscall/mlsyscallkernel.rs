@@ -27,6 +27,8 @@ use cid::Cid;
 
 pub trait MLSyscallKernel: Kernel {
     fn train_linear_regression_syscall(&self, data: &[u8], label: &[u8]) -> Result<RawBytes>;
+    fn predict_linear_regression_syscall(&self, model: &[u8], test_data: &[u8])
+        -> Result<RawBytes>;
 }
 
 // our mlsyscall kernel extends the filecoin kernel
@@ -66,7 +68,6 @@ where
         .unwrap();
 
         let divisor: i64 = 100;
-        let multiplier: f64 = 100.0;
 
         // Check to prevent division by zero
         let input_x: Vec<Vec<f64>> = deserialized_data
@@ -108,6 +109,52 @@ where
         //     .collect();
         // Ok(result)
         Ok(model_ser)
+    }
+
+    fn predict_linear_regression_syscall(
+        &self,
+        model: &[u8],
+        test_data: &[u8],
+    ) -> Result<RawBytes> {
+        let deserialized_data: Vec<Vec<i64>> = fvm_ipld_encoding::RawBytes::deserialize(
+            &fvm_ipld_encoding::RawBytes::new(Vec::from(test_data)),
+        )
+        .unwrap();
+        let serialized_model: Vec<u8> = fvm_ipld_encoding::RawBytes::deserialize(
+            &fvm_ipld_encoding::RawBytes::new(Vec::from(model)),
+        )
+        .unwrap();
+        let deserealized_model: LinearRegression<f64, f64, DenseMatrix<f64>, Vec<f64>> =
+            fvm_ipld_encoding::RawBytes::deserialize(&fvm_ipld_encoding::RawBytes::new(
+                serialized_model,
+            ))
+            .unwrap();
+
+        let divisor: i64 = 100;
+        let multiplier: f64 = 100.0;
+
+        // Check to prevent division by zero
+        let input_x: Vec<Vec<f64>> = deserialized_data
+            .iter()
+            .map(|inner_vec| {
+                inner_vec
+                    .iter()
+                    .map(|&x| x as f64 / divisor as f64)
+                    .collect()
+            })
+            .collect();
+
+        let x = DenseMatrix::from_2d_vec(&input_x);
+
+        let prediction = deserealized_model.predict(&x).unwrap();
+
+        let result: Vec<i64> = prediction
+            .iter()
+            .map(|&x| (x * multiplier) as i64)
+            .collect();
+
+        let ser_result_raw = fvm_ipld_encoding::RawBytes::serialize(result).unwrap();
+        Ok(ser_result_raw)
     }
 }
 
@@ -185,6 +232,11 @@ where
             "train_linear_regression_syscall",
             train_linear_regression_syscall,
         )?;
+        linker.link_syscall(
+            "mlsyscall_kernel",
+            "predict_linear_regression_syscall",
+            predict_linear_regression_syscall,
+        )?;
 
         Ok(())
     }
@@ -212,6 +264,42 @@ pub fn train_linear_regression_syscall(
         .train_linear_regression_syscall(array, conv_array)?;
 
     // let ser_result_raw = fvm_ipld_encoding::RawBytes::serialize(result).unwrap();
+
+    let ser_result: &[u8] = ser_result_raw.bytes();
+
+    let output = context
+        .memory
+        .try_slice_mut(output_offset, output_length)
+        .unwrap();
+    let length = cmp::min(output.len(), ser_result.len());
+    output[..length].copy_from_slice(ser_result);
+
+    Ok(length as u32)
+}
+
+pub fn predict_linear_regression_syscall(
+    context: fvm::syscalls::Context<'_, impl MLSyscallKernel>,
+    data_offset: u32,
+    data_length: u32,
+    output_offset: u32,
+    output_length: u32,
+    model_offset: u32,
+    model_length: u32,
+) -> Result<u32> {
+    // Check the digest bounds first so we don't do any work if they're incorrect.
+    context.memory.check_bounds(output_offset, output_length)?;
+
+    let model_array = context
+        .memory
+        .try_slice(model_offset as u32, model_length as u32)?;
+
+    let data_array = context
+        .memory
+        .try_slice(data_offset as u32, data_length as u32)?;
+
+    let ser_result_raw = context
+        .kernel
+        .predict_linear_regression_syscall(model_array, data_array)?;
 
     let ser_result: &[u8] = ser_result_raw.bytes();
 
