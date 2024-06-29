@@ -17,9 +17,10 @@ use fvm_shared::sys::out::network::NetworkContext;
 use fvm_shared::sys::out::vm::MessageContext;
 use fvm_shared::{address::Address, econ::TokenAmount, ActorID, MethodNum};
 use smartcore::linalg::basic::matrix::DenseMatrix;
-use smartcore::linear::linear_regression::LinearRegression;
-use smartcore::linear::linear_regression::LinearRegressionParameters;
-use smartcore::linear::linear_regression::LinearRegressionSolverName;
+use smartcore::linear::linear_regression::{
+    LinearRegression, LinearRegressionParameters, LinearRegressionSolverName,
+};
+use smartcore::linear::logistic_regression::LogisticRegression;
 use std::cmp;
 
 use ambassador::Delegate;
@@ -29,6 +30,12 @@ pub trait MLSyscallKernel: Kernel {
     fn train_linear_regression_syscall(&self, data: &[u8], label: &[u8]) -> Result<RawBytes>;
     fn predict_linear_regression_syscall(&self, model: &[u8], test_data: &[u8])
         -> Result<RawBytes>;
+    fn train_logistic_regression_syscall(&self, data: &[u8], labels: &[u8]) -> Result<RawBytes>;
+    fn predict_logistic_regression_syscall(
+        &self,
+        model: &[u8],
+        test_data: &[u8],
+    ) -> Result<RawBytes>;
 }
 
 // our mlsyscall kernel extends the filecoin kernel
@@ -52,11 +59,6 @@ where
     MLSyscallKernelImpl<C>: Kernel,
 {
     fn train_linear_regression_syscall(&self, data: &[u8], labels: &[u8]) -> Result<RawBytes> {
-        // Here we have access to the Kernel structure and can call
-        // any of its methods, send messages, etc.
-
-        // We can also run an external program, link to any rust library
-        // access the network, etc.
         let deserialized_data: Vec<Vec<i64>> = fvm_ipld_encoding::RawBytes::deserialize(
             &fvm_ipld_encoding::RawBytes::new(Vec::from(data)),
         )
@@ -98,16 +100,6 @@ where
 
         let model_ser = fvm_ipld_encoding::RawBytes::serialize(lir).unwrap();
 
-        // let model: LinearRegression<f64, f64, DenseMatrix<f64>, Vec<f64>> =
-        //     fvm_ipld_encoding::RawBytes::deserialize(&model_ser).unwrap();
-
-        // let prediction = model.predict(&x).unwrap();
-
-        // let result: Vec<i64> = prediction
-        //     .iter()
-        //     .map(|&x| (x * multiplier) as i64)
-        //     .collect();
-        // Ok(result)
         Ok(model_ser)
     }
 
@@ -124,7 +116,7 @@ where
             &fvm_ipld_encoding::RawBytes::new(Vec::from(model)),
         )
         .unwrap();
-        let deserealized_model: LinearRegression<f64, f64, DenseMatrix<f64>, Vec<f64>> =
+        let deserialized_model: LinearRegression<f64, f64, DenseMatrix<f64>, Vec<f64>> =
             fvm_ipld_encoding::RawBytes::deserialize(&fvm_ipld_encoding::RawBytes::new(
                 serialized_model,
             ))
@@ -146,12 +138,90 @@ where
 
         let x = DenseMatrix::from_2d_vec(&input_x);
 
-        let prediction = deserealized_model.predict(&x).unwrap();
+        let prediction = deserialized_model.predict(&x).unwrap();
 
         let result: Vec<i64> = prediction
             .iter()
             .map(|&x| (x * multiplier) as i64)
             .collect();
+
+        let ser_result_raw = fvm_ipld_encoding::RawBytes::serialize(result).unwrap();
+        Ok(ser_result_raw)
+    }
+
+    fn train_logistic_regression_syscall(&self, data: &[u8], labels: &[u8]) -> Result<RawBytes> {
+        let deserialized_data: Vec<Vec<i64>> = fvm_ipld_encoding::RawBytes::deserialize(
+            &fvm_ipld_encoding::RawBytes::new(Vec::from(data)),
+        )
+        .unwrap();
+
+        let deserialized_labels: Vec<i64> = fvm_ipld_encoding::RawBytes::deserialize(
+            &fvm_ipld_encoding::RawBytes::new(Vec::from(labels)),
+        )
+        .unwrap();
+
+        let divisor: i64 = 100;
+
+        // Check to prevent division by zero
+        let input_x: Vec<Vec<f64>> = deserialized_data
+            .iter()
+            .map(|inner_vec| {
+                inner_vec
+                    .iter()
+                    .map(|&x| x as f64 / divisor as f64)
+                    .collect()
+            })
+            .collect();
+
+        let input_y: Vec<i64> = deserialized_labels;
+
+        let x = DenseMatrix::from_2d_vec(&input_x);
+
+        let lir: LogisticRegression<f64, i64, DenseMatrix<f64>, Vec<i64>> =
+            LogisticRegression::fit(&x, &input_y, Default::default()).unwrap();
+
+        let model_ser = fvm_ipld_encoding::RawBytes::serialize(lir).unwrap();
+
+        Ok(model_ser)
+    }
+
+    fn predict_logistic_regression_syscall(
+        &self,
+        model: &[u8],
+        test_data: &[u8],
+    ) -> Result<RawBytes> {
+        let deserialized_data: Vec<Vec<i64>> = fvm_ipld_encoding::RawBytes::deserialize(
+            &fvm_ipld_encoding::RawBytes::new(Vec::from(test_data)),
+        )
+        .unwrap();
+        let serialized_model: Vec<u8> = fvm_ipld_encoding::RawBytes::deserialize(
+            &fvm_ipld_encoding::RawBytes::new(Vec::from(model)),
+        )
+        .unwrap();
+        let deserialized_model: LogisticRegression<f64, i64, DenseMatrix<f64>, Vec<i64>> =
+            fvm_ipld_encoding::RawBytes::deserialize(&fvm_ipld_encoding::RawBytes::new(
+                serialized_model,
+            ))
+            .unwrap();
+
+        let divisor: i64 = 100;
+
+        // Check to prevent division by zero
+        let input_x: Vec<Vec<f64>> = deserialized_data
+            .iter()
+            .map(|inner_vec| {
+                inner_vec
+                    .iter()
+                    .map(|&x| x as f64 / divisor as f64)
+                    .collect()
+            })
+            .collect();
+
+        let x = DenseMatrix::from_2d_vec(&input_x);
+
+        let prediction = deserialized_model.predict(&x).unwrap();
+
+        let result: Vec<i64> = prediction;
 
         let ser_result_raw = fvm_ipld_encoding::RawBytes::serialize(result).unwrap();
         Ok(ser_result_raw)
@@ -237,6 +307,16 @@ where
             "predict_linear_regression_syscall",
             predict_linear_regression_syscall,
         )?;
+        linker.link_syscall(
+            "mlsyscall_kernel",
+            "train_logistic_regression_syscall",
+            train_logistic_regression_syscall,
+        )?;
+        linker.link_syscall(
+            "mlsyscall_kernel",
+            "predict_logistic_regression_syscall",
+            predict_logistic_regression_syscall,
+        )?;
 
         Ok(())
     }
@@ -300,6 +380,77 @@ pub fn predict_linear_regression_syscall(
     let ser_result_raw = context
         .kernel
         .predict_linear_regression_syscall(model_array, data_array)?;
+
+    let ser_result: &[u8] = ser_result_raw.bytes();
+
+    let output = context
+        .memory
+        .try_slice_mut(output_offset, output_length)
+        .unwrap();
+    let length = cmp::min(output.len(), ser_result.len());
+    output[..length].copy_from_slice(ser_result);
+
+    Ok(length as u32)
+}
+
+pub fn train_logistic_regression_syscall(
+    context: fvm::syscalls::Context<'_, impl MLSyscallKernel>,
+    data_offset: u32,
+    data_length: u32,
+    output_offset: u32,
+    output_length: u32,
+    conv_offset: u32,
+    conv_length: u32,
+) -> Result<u32> {
+    // Check the digest bounds first so we don't do any work if they're incorrect.
+    context.memory.check_bounds(output_offset, output_length)?;
+
+    let array = context
+        .memory
+        .try_slice(data_offset as u32, data_length as u32)?;
+
+    let conv_array = context.memory.try_slice(conv_offset, conv_length)?;
+    let ser_result_raw = context
+        .kernel
+        .train_logistic_regression_syscall(array, conv_array)?;
+
+    // let ser_result_raw = fvm_ipld_encoding::RawBytes::serialize(result).unwrap();
+
+    let ser_result: &[u8] = ser_result_raw.bytes();
+
+    let output = context
+        .memory
+        .try_slice_mut(output_offset, output_length)
+        .unwrap();
+    let length = cmp::min(output.len(), ser_result.len());
+    output[..length].copy_from_slice(ser_result);
+
+    Ok(length as u32)
+}
+
+pub fn predict_logistic_regression_syscall(
+    context: fvm::syscalls::Context<'_, impl MLSyscallKernel>,
+    data_offset: u32,
+    data_length: u32,
+    output_offset: u32,
+    output_length: u32,
+    model_offset: u32,
+    model_length: u32,
+) -> Result<u32> {
+    // Check the digest bounds first so we don't do any work if they're incorrect.
+    context.memory.check_bounds(output_offset, output_length)?;
+
+    let model_array = context
+        .memory
+        .try_slice(model_offset as u32, model_length as u32)?;
+
+    let data_array = context
+        .memory
+        .try_slice(data_offset as u32, data_length as u32)?;
+
+    let ser_result_raw = context
+        .kernel
+        .predict_logistic_regression_syscall(model_array, data_array)?;
 
     let ser_result: &[u8] = ser_result_raw.bytes();
 
