@@ -29,6 +29,18 @@ pub struct PredictLogisticRegressionParams {
     pub model: Vec<u8>,
 }
 
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct TrainKNNRegressionParams {
+    pub input_matrix: Vec<Vec<i64>>,
+    pub labels: Vec<i64>,
+}
+
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct PredictKNNRegressionParams {
+    pub input_matrix: Vec<Vec<i64>>,
+    pub model: Vec<u8>,
+}
+
 #[derive(FromPrimitive)]
 #[repr(u64)]
 pub enum Method {
@@ -36,4 +48,6 @@ pub enum Method {
     PredictLinearRegression = frc42_dispatch::method_hash!("PredictLinearRegression"),
     TrainLogisticRegression = frc42_dispatch::method_hash!("TrainLogisticRegression"),
     PredictLogisticRegression = frc42_dispatch::method_hash!("PredictLogisticRegression"),
+    TrainKNNRegression = frc42_dispatch::method_hash!("TrainKNNRegression"),
+    PredictKNNRegression = frc42_dispatch::method_hash!("PredictKNNRegression"),
 }

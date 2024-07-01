@@ -9,8 +9,6 @@ use fendermint_vm_actor_interface::{chainmetadata, cron, machinelearning, system
 use fvm::executor::ApplyRet;
 use fvm_ipld_blockstore::Blockstore;
 use fvm_shared::{address::Address, ActorID, MethodNum, BLOCK_GAS_LIMIT};
-use smartcore::linalg::basic::matrix::DenseMatrix;
-use smartcore::linear::linear_regression::LinearRegression;
 use tendermint_rpc::Client;
 
 use crate::ExecInterpreter;
@@ -318,7 +316,7 @@ where
             ];
 
             let predict_params = fvm_ipld_encoding::RawBytes::serialize(
-                fendermint_actor_machinelearning::PredictLinearRegressionParams {
+                fendermint_actor_machinelearning::PredictLogisticRegressionParams {
                     input_matrix: prediction_input_matrix,
                     model: val,
                 },
@@ -343,6 +341,100 @@ where
             if let Some(err) = predict_apply_ret.failure_info {
                 anyhow::bail!(
                     "failed to apply predict_logistic_regression_syscall message: {}",
+                    err
+                );
+            }
+
+            let prediction_results: Vec<i64> = predict_apply_ret
+                .msg_receipt
+                .return_data
+                .deserialize()
+                .unwrap();
+
+            tracing::info!("the prediction results are: {:?}", prediction_results);
+        }
+
+        {
+            tracing::info!("Running knn regression test");
+            let input_matrix: Vec<Vec<i64>> = vec![
+                vec![100, 100],
+                vec![200, 200],
+                vec![300, 300],
+                vec![400, 400],
+                vec![500, 500],
+            ];
+
+            let labels: Vec<i64> = vec![100, 200, 300, 400, 500];
+            let params = fvm_ipld_encoding::RawBytes::serialize(
+                fendermint_actor_machinelearning::TrainKNNRegressionParams {
+                    input_matrix,
+                    labels,
+                },
+            )?;
+
+            let msg = FvmMessage {
+                from: system::SYSTEM_ACTOR_ADDR,
+                to: machinelearning::MACHINELEARNING_ACTOR_ADDR,
+                sequence: height as u64,
+                gas_limit,
+                method_num: fendermint_actor_machinelearning::Method::TrainKNNRegression as u64,
+                params,
+                value: Default::default(),
+                version: Default::default(),
+                gas_fee_cap: Default::default(),
+                gas_premium: Default::default(),
+            };
+
+            let (apply_ret, _) = state.execute_implicit(msg)?;
+
+            if let Some(err) = apply_ret.failure_info {
+                anyhow::bail!("failed to apply customsyscall message: {}", err);
+            }
+
+            let val: Vec<u8> = apply_ret.msg_receipt.return_data.deserialize().unwrap();
+            tracing::info!(
+                "machinelearning actor address: {}",
+                machinelearning::MACHINELEARNING_ACTOR_ADDR
+            );
+
+            tracing::info!(
+                "mlsyscall actor train_knn_regression method returned: {:?}",
+                val
+            );
+
+            let prediction_input_matrix: Vec<Vec<i64>> = vec![
+                vec![100, 100],
+                vec![200, 200],
+                vec![300, 300],
+                vec![400, 400],
+                vec![500, 500],
+            ];
+
+            let predict_params = fvm_ipld_encoding::RawBytes::serialize(
+                fendermint_actor_machinelearning::PredictKNNRegressionParams {
+                    input_matrix: prediction_input_matrix,
+                    model: val,
+                },
+            )?;
+
+            let predict_msg = FvmMessage {
+                from: system::SYSTEM_ACTOR_ADDR,
+                to: machinelearning::MACHINELEARNING_ACTOR_ADDR,
+                sequence: height as u64,
+                gas_limit,
+                method_num: fendermint_actor_machinelearning::Method::PredictKNNRegression as u64,
+                params: predict_params,
+                value: Default::default(),
+                version: Default::default(),
+                gas_fee_cap: Default::default(),
+                gas_premium: Default::default(),
+            };
+
+            let (predict_apply_ret, _) = state.execute_implicit(predict_msg)?;
+
+            if let Some(err) = predict_apply_ret.failure_info {
+                anyhow::bail!(
+                    "failed to apply predict_knn_regression_syscall message: {}",
                     err
                 );
             }
