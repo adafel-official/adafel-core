@@ -41,6 +41,66 @@ pub struct PredictKNNRegressionParams {
     pub model: Vec<u8>,
 }
 
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct TrainKNNClassificationParams {
+    pub input_matrix: Vec<Vec<i64>>,
+    pub labels: Vec<i64>,
+}
+
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct PredictKNNClassificationParams {
+    pub input_matrix: Vec<Vec<i64>>,
+    pub model: Vec<u8>,
+}
+
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct TrainDecisionTreeRegressionParams {
+    pub input_matrix: Vec<Vec<i64>>,
+    pub labels: Vec<i64>,
+}
+
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct PredictDecisionTreeRegressionParams {
+    pub input_matrix: Vec<Vec<i64>>,
+    pub model: Vec<u8>,
+}
+
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct TrainDecisionTreeClassificationParams {
+    pub input_matrix: Vec<Vec<i64>>,
+    pub labels: Vec<i64>,
+}
+
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct PredictDecisionTreeClassificationParams {
+    pub input_matrix: Vec<Vec<i64>>,
+    pub model: Vec<u8>,
+}
+
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct TrainRandomForestRegressionParams {
+    pub input_matrix: Vec<Vec<i64>>,
+    pub labels: Vec<i64>,
+}
+
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct PredictRandomForestRegressionParams {
+    pub input_matrix: Vec<Vec<i64>>,
+    pub model: Vec<u8>,
+}
+
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct TrainRandomForestClassificationParams {
+    pub input_matrix: Vec<Vec<i64>>,
+    pub labels: Vec<i64>,
+}
+
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct PredictRandomForestClassificationParams {
+    pub input_matrix: Vec<Vec<i64>>,
+    pub model: Vec<u8>,
+}
+
 #[derive(FromPrimitive)]
 #[repr(u64)]
 pub enum Method {
@@ -50,4 +110,18 @@ pub enum Method {
     PredictLogisticRegression = frc42_dispatch::method_hash!("PredictLogisticRegression"),
     TrainKNNRegression = frc42_dispatch::method_hash!("TrainKNNRegression"),
     PredictKNNRegression = frc42_dispatch::method_hash!("PredictKNNRegression"),
+    TrainKNNClassification = frc42_dispatch::method_hash!("TrainKNNClassification"),
+    PredictKNNClassification = frc42_dispatch::method_hash!("PredictKNNClassification"),
+    TrainDecisionTreeRegression = frc42_dispatch::method_hash!("TrainDecisionTreeRegression"),
+    PredictDecisionTreeRegression = frc42_dispatch::method_hash!("PredictDecisionTreeRegression"),
+    TrainDecisionTreeClassification =
+        frc42_dispatch::method_hash!("TrainDecisionTreeClassification"),
+    PredictDecisionTreeClassification =
+        frc42_dispatch::method_hash!("PredictDecisionTreeClassification"),
+    TrainRandomForestRegression = frc42_dispatch::method_hash!("TrainRandomForestRegression"),
+    PredictRandomForestRegression = frc42_dispatch::method_hash!("PredictRandomForestRegression"),
+    TrainRandomForestClassification =
+        frc42_dispatch::method_hash!("TrainRandomForestClassification"),
+    PredictRandomForestClassification =
+        frc42_dispatch::method_hash!("PredictRandomForestClassification"),
 }
