@@ -60,6 +60,8 @@ fn main() {
         "LibStakingChangeLog",
         "LibGateway",
         "LibQuorum",
+        "DataStorage",
+        "ModelStorage",
     ] {
         let module_name = camel_to_snake(contract_name);
         let input_path =
@@ -91,6 +93,8 @@ fn main() {
         "SubnetActorCheckpointingFacet",
         "SubnetActorGetterFacet",
         "LibGateway",
+        "DataStorage",
+        "ModelStorage",
     ];
 
     let modules = fvm_address_conversion.into_iter().map(camel_to_snake);
