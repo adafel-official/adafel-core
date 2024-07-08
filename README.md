@@ -58,3 +58,18 @@ make test
 - `fendermint`: Peer implementation to run subnets based on Tendermint Core.
 - `contracts`: A reference implementation of all the actors (i.e. smart contracts) responsible for the operation of the IPC (Inter-Planetary Consensus) protocol.
 - `ipld`: IPLD specific types and libraries
+
+## Machine Learning Precompiles
+
+Adafel protocol achieves its onchain machine learning model training and prediction capability by adding bunch of custom wasm actors and syscalls. Currently the following ML algorithms are implemented:
+
+- Linear Regression
+- Logistic Regression
+- KNN Regression
+- KNN Classification
+- Decision Tree Regression
+- Decision Tree Classification
+- Random Forest Regression
+- Random Forest Classification
+
+We have created a solidity library to interact with these syscalls. See [adafel-solidity](https://github.com/adafel-official/adafel-solidity)
