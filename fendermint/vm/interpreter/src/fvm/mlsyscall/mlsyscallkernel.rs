@@ -32,6 +32,7 @@ use std::cmp;
 
 use ambassador::Delegate;
 use cid::Cid;
+use reqwest::blocking::get;
 
 pub trait MLSyscallKernel: Kernel {
     fn train_linear_regression_syscall(&self, data: &[u8], label: &[u8]) -> Result<RawBytes>;
@@ -91,6 +92,7 @@ pub trait MLSyscallKernel: Kernel {
         model: &[u8],
         test_data: &[u8],
     ) -> Result<RawBytes>;
+    fn extract_cid_data_syscall(&self, cid: Cid) -> Result<RawBytes>;
 }
 
 // our mlsyscall kernel extends the filecoin kernel
@@ -148,7 +150,7 @@ where
             &x,
             &input_y,
             LinearRegressionParameters {
-                solver: LinearRegressionSolverName::QR,
+                solver: LinearRegressionSolverName::SVD,
             },
         )
         .unwrap();
@@ -787,6 +789,21 @@ where
         let ser_result_raw = fvm_ipld_encoding::RawBytes::serialize(result).unwrap();
         Ok(ser_result_raw)
     }
+
+    // TODO: Make this more deterministic and improve error handling
+    fn extract_cid_data_syscall(&self, cid: Cid) -> Result<RawBytes> {
+        let response = match get(format!("https://ipfs.io/ipfs/{}", cid)) {
+            Ok(resp) => resp.text().unwrap(),
+            Err(_) => return Ok(fvm_ipld_encoding::RawBytes::serialize(vec![vec![0]]).unwrap()),
+        };
+
+        println!("the response is: {}", response);
+
+        let matrix: Vec<Vec<i64>> = serde_json::from_str(&response).unwrap();
+        // let matrix: Vec<Vec<i64>> = vec![vec![1, 1, 1], vec![2, 2, 2]];
+
+        return Ok(fvm_ipld_encoding::RawBytes::serialize(matrix).unwrap());
+    }
 }
 
 impl<C> Kernel for MLSyscallKernelImpl<C>
@@ -937,6 +954,11 @@ where
             "mlsyscall_kernel",
             "predict_random_forest_classification_syscall",
             predict_random_forest_classification_syscall,
+        )?;
+        linker.link_syscall(
+            "mlsyscall_kernel",
+            "extract_cid_data_syscall",
+            extract_cid_data_syscall,
         )?;
 
         Ok(())
@@ -1482,6 +1504,39 @@ pub fn predict_random_forest_classification_syscall(
     let ser_result_raw = context
         .kernel
         .predict_random_forest_classification_syscall(model_array, data_array)?;
+
+    let ser_result: &[u8] = ser_result_raw.bytes();
+
+    let output = context
+        .memory
+        .try_slice_mut(output_offset, output_length)
+        .unwrap();
+    let length = cmp::min(output.len(), ser_result.len());
+    output[..length].copy_from_slice(ser_result);
+
+    Ok(length as u32)
+}
+
+pub fn extract_cid_data_syscall(
+    context: fvm::syscalls::Context<'_, impl MLSyscallKernel>,
+    cid_offset: u32,
+    cid_length: u32,
+    output_offset: u32,
+    output_length: u32,
+) -> Result<u32> {
+    // Check the digest bounds first so we don't do any work if they're incorrect.
+    context.memory.check_bounds(output_offset, output_length)?;
+
+    let cid_bytes_array = context
+        .memory
+        .try_slice(cid_offset as u32, cid_length as u32)?;
+
+    let data_cid: Cid = fvm_ipld_encoding::RawBytes::deserialize(
+        &fvm_ipld_encoding::RawBytes::new(Vec::from(cid_bytes_array)),
+    )
+    .unwrap();
+
+    let ser_result_raw = context.kernel.extract_cid_data_syscall(data_cid)?;
 
     let ser_result: &[u8] = ser_result_raw.bytes();
 

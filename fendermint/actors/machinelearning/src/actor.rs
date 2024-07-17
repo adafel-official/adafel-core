@@ -13,15 +13,16 @@ use fvm_shared::sys::out;
 use std::cmp;
 
 use crate::{
-    Method, PredictDecisionTreeClassificationParams, PredictDecisionTreeRegressionParams,
-    PredictKNNClassificationParams, PredictKNNRegressionParams, PredictLinearRegressionParams,
-    PredictLogisticRegressionParams, PredictRandomForestClassificationParams,
-    PredictRandomForestRegressionParams, TrainDecisionTreeClassificationParams,
-    TrainDecisionTreeRegressionParams, TrainKNNClassificationParams, TrainKNNRegressionParams,
-    TrainLinearRegressionParams, TrainLogisticRegressionParams,
-    TrainRandomForestClassificationParams, TrainRandomForestRegressionParams,
-    MACHINELEARNING_ACTOR_NAME,
+    ExtractCidDataParams, Method, PredictDecisionTreeClassificationParams,
+    PredictDecisionTreeRegressionParams, PredictKNNClassificationParams,
+    PredictKNNRegressionParams, PredictLinearRegressionParams, PredictLogisticRegressionParams,
+    PredictRandomForestClassificationParams, PredictRandomForestRegressionParams,
+    TrainDecisionTreeClassificationParams, TrainDecisionTreeRegressionParams,
+    TrainKNNClassificationParams, TrainKNNRegressionParams, TrainLinearRegressionParams,
+    TrainLogisticRegressionParams, TrainRandomForestClassificationParams,
+    TrainRandomForestRegressionParams, MACHINELEARNING_ACTOR_NAME,
 };
+use cid::Cid;
 
 fil_actors_runtime::wasm_trampoline!(Actor);
 
@@ -154,6 +155,12 @@ fvm_sdk::sys::fvm_syscalls! {
       output_length: u32,
       model_offset: u32,
       model_length: u32,
+    ) -> Result<u32>;
+    pub fn extract_cid_data_syscall(
+      cid_offset: u32,
+      cid_length: u32,
+      output_offset: u32,
+      output_length: u32,
     ) -> Result<u32>;
 }
 
@@ -788,6 +795,42 @@ impl Actor {
             Ok(result)
         }
     }
+
+    fn extract_cid_data(
+        rt: &impl Runtime,
+        params: ExtractCidDataParams,
+    ) -> Result<Vec<Vec<i64>>, ActorError> {
+        rt.validate_immediate_caller_accept_any()?;
+
+        unsafe {
+            let data_cid = params.cid;
+
+            let output_length = 1000000;
+
+            let array = fvm_ipld_encoding::RawBytes::serialize(data_cid).unwrap();
+            let cid_offset = array.bytes().as_ptr() as u32;
+            let cid_length: u32 = array.bytes().len() as u32;
+
+            let mut output_raw: Vec<u8> = vec![0; output_length];
+            let value: u32 = extract_cid_data_syscall(
+                cid_offset,
+                cid_length,
+                output_raw.as_ptr() as u32,
+                output_length as u32,
+            )
+            .unwrap();
+
+            let mut result_raw: Vec<u8> = vec![0; value as usize];
+            result_raw.copy_from_slice(&output_raw[..(value as usize)]);
+
+            let result: Vec<Vec<i64>> = fvm_ipld_encoding::RawBytes::deserialize(
+                &fvm_ipld_encoding::RawBytes::new(result_raw),
+            )
+            .unwrap();
+
+            Ok(result)
+        }
+    }
 }
 
 impl ActorCode for Actor {
@@ -814,5 +857,6 @@ impl ActorCode for Actor {
       PredictRandomForestRegression => predict_random_forest_regression,
       TrainRandomForestClassification => train_random_forest_classification,
       PredictRandomForestClassification => predict_random_forest_classification,
+      ExtractCidData => extract_cid_data,
     }
 }

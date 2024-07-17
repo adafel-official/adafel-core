@@ -1,3 +1,4 @@
+use cid::Cid;
 // Copyright 2021-2023 Protocol Labs
 // SPDX-License-Identifier: Apache-2.0, MIT
 use fvm_ipld_encoding::tuple::{Deserialize_tuple, Serialize_tuple};
@@ -101,6 +102,11 @@ pub struct PredictRandomForestClassificationParams {
     pub model: Vec<u8>,
 }
 
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct ExtractCidDataParams {
+    pub cid: Cid,
+}
+
 #[derive(FromPrimitive)]
 #[repr(u64)]
 pub enum Method {
@@ -124,4 +130,5 @@ pub enum Method {
         frc42_dispatch::method_hash!("TrainRandomForestClassification"),
     PredictRandomForestClassification =
         frc42_dispatch::method_hash!("PredictRandomForestClassification"),
+    ExtractCidData = frc42_dispatch::method_hash!("ExtractCidData"),
 }

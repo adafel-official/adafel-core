@@ -12,6 +12,8 @@ use fvm_shared::{address::Address, ActorID, MethodNum, BLOCK_GAS_LIMIT};
 use tendermint_rpc::Client;
 
 use crate::ExecInterpreter;
+use cid::Cid;
+use std::str::FromStr;
 
 use super::{
     checkpoint::{self, PowerUpdates},
@@ -867,106 +869,106 @@ where
         // }
 
         // {
-        // tracing::info!("Running random forest classification test");
-        // let input_matrix: Vec<Vec<i64>> = vec![
-        //     vec![510, 350, 140, 20],
-        //     vec![490, 300, 140, 20],
-        //     vec![470, 320, 130, 20],
-        //     vec![460, 310, 150, 20],
-        //     vec![500, 360, 140, 20],
-        //     vec![540, 390, 170, 40],
-        //     vec![460, 340, 140, 30],
-        //     vec![500, 340, 150, 20],
-        //     vec![440, 290, 140, 20],
-        //     vec![409, 310, 150, 10],
-        //     vec![700, 320, 470, 140],
-        //     vec![640, 320, 450, 150],
-        //     vec![690, 310, 490, 150],
-        //     vec![550, 230, 400, 130],
-        //     vec![650, 280, 460, 150],
-        //     vec![570, 280, 450, 130],
-        //     vec![630, 330, 470, 160],
-        //     vec![490, 240, 330, 100],
-        //     vec![660, 290, 406, 130],
-        //     vec![520, 270, 390, 140],
-        // ];
+        //     tracing::info!("Running random forest classification test");
+        //     let input_matrix: Vec<Vec<i64>> = vec![
+        //         vec![510, 350, 140, 20],
+        //         vec![490, 300, 140, 20],
+        //         vec![470, 320, 130, 20],
+        //         vec![460, 310, 150, 20],
+        //         vec![500, 360, 140, 20],
+        //         vec![540, 390, 170, 40],
+        //         vec![460, 340, 140, 30],
+        //         vec![500, 340, 150, 20],
+        //         vec![440, 290, 140, 20],
+        //         vec![409, 310, 150, 10],
+        //         vec![700, 320, 470, 140],
+        //         vec![640, 320, 450, 150],
+        //         vec![690, 310, 490, 150],
+        //         vec![550, 230, 400, 130],
+        //         vec![650, 280, 460, 150],
+        //         vec![570, 280, 450, 130],
+        //         vec![630, 330, 470, 160],
+        //         vec![490, 240, 330, 100],
+        //         vec![660, 290, 406, 130],
+        //         vec![520, 270, 390, 140],
+        //     ];
 
-        // let labels: Vec<i64> = vec![0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
-        // let params = fvm_ipld_encoding::RawBytes::serialize(
-        //     fendermint_actor_machinelearning::TrainRandomForestClassificationParams {
-        //         input_matrix,
-        //         labels,
-        //     },
-        // )?;
+        //     let labels: Vec<i64> = vec![0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+        //     let params = fvm_ipld_encoding::RawBytes::serialize(
+        //         fendermint_actor_machinelearning::TrainRandomForestClassificationParams {
+        //             input_matrix,
+        //             labels,
+        //         },
+        //     )?;
 
-        // let msg = FvmMessage {
-        //     from: system::SYSTEM_ACTOR_ADDR,
-        //     to: machinelearning::MACHINELEARNING_ACTOR_ADDR,
-        //     sequence: height as u64,
-        //     gas_limit,
-        //     method_num:
-        //         fendermint_actor_machinelearning::Method::TrainRandomForestClassification as u64,
-        //     params,
-        //     value: Default::default(),
-        //     version: Default::default(),
-        //     gas_fee_cap: Default::default(),
-        //     gas_premium: Default::default(),
-        // };
+        //     let msg = FvmMessage {
+        //         from: system::SYSTEM_ACTOR_ADDR,
+        //         to: machinelearning::MACHINELEARNING_ACTOR_ADDR,
+        //         sequence: height as u64,
+        //         gas_limit,
+        //         method_num:
+        //             fendermint_actor_machinelearning::Method::TrainRandomForestClassification as u64,
+        //         params,
+        //         value: Default::default(),
+        //         version: Default::default(),
+        //         gas_fee_cap: Default::default(),
+        //         gas_premium: Default::default(),
+        //     };
 
-        // let (apply_ret, _) = state.execute_implicit(msg)?;
+        //     let (apply_ret, _) = state.execute_implicit(msg)?;
 
-        // if let Some(err) = apply_ret.failure_info {
-        //     anyhow::bail!("failed to apply customsyscall message: {}", err);
-        // }
+        //     if let Some(err) = apply_ret.failure_info {
+        //         anyhow::bail!("failed to apply customsyscall message: {}", err);
+        //     }
 
-        // let val: Vec<u8> = apply_ret.msg_receipt.return_data.deserialize().unwrap();
-        // tracing::info!(
-        //     "machinelearning actor address: {}",
-        //     machinelearning::MACHINELEARNING_ACTOR_ADDR
-        // );
-
-        // tracing::info!(
-        //     "mlsyscall actor train_random_forest_classification method returned: {:?}",
-        //     val
-        // );
-
-        // let prediction_input_matrix: Vec<Vec<i64>> = vec![
-        //     vec![630, 330, 470, 160],
-        //     vec![490, 240, 330, 100],
-        //     vec![660, 290, 406, 130],
-        //     vec![520, 270, 390, 140],
-        // ];
-
-        // let predict_params = fvm_ipld_encoding::RawBytes::serialize(
-        //     fendermint_actor_machinelearning::PredictRandomForestClassificationParams {
-        //         input_matrix: prediction_input_matrix,
-        //         model: val,
-        //     },
-        // )?;
-
-        // let predict_msg = FvmMessage {
-        //     from: system::SYSTEM_ACTOR_ADDR,
-        //     to: machinelearning::MACHINELEARNING_ACTOR_ADDR,
-        //     sequence: height as u64,
-        //     gas_limit,
-        //     method_num:
-        //         fendermint_actor_machinelearning::Method::PredictRandomForestClassification
-        //             as u64,
-        //     params: predict_params,
-        //     value: Default::default(),
-        //     version: Default::default(),
-        //     gas_fee_cap: Default::default(),
-        //     gas_premium: Default::default(),
-        // };
-
-        // let (predict_apply_ret, _) = state.execute_implicit(predict_msg)?;
-
-        // if let Some(err) = predict_apply_ret.failure_info {
-        //     anyhow::bail!(
-        //         "failed to apply predict_random_forest_classification_syscall message: {}",
-        //         err
+        //     let val: Vec<u8> = apply_ret.msg_receipt.return_data.deserialize().unwrap();
+        //     tracing::info!(
+        //         "machinelearning actor address: {}",
+        //         machinelearning::MACHINELEARNING_ACTOR_ADDR
         //     );
-        // }
+
+        //     tracing::info!(
+        //         "mlsyscall actor train_random_forest_classification method returned: {:?}",
+        //         val
+        //     );
+
+        //     let prediction_input_matrix: Vec<Vec<i64>> = vec![
+        //         vec![630, 330, 470, 160],
+        //         vec![490, 240, 330, 100],
+        //         vec![660, 290, 406, 130],
+        //         vec![520, 270, 390, 140],
+        //     ];
+
+        //     let predict_params = fvm_ipld_encoding::RawBytes::serialize(
+        //         fendermint_actor_machinelearning::PredictRandomForestClassificationParams {
+        //             input_matrix: prediction_input_matrix,
+        //             model: val,
+        //         },
+        //     )?;
+
+        //     let predict_msg = FvmMessage {
+        //         from: system::SYSTEM_ACTOR_ADDR,
+        //         to: machinelearning::MACHINELEARNING_ACTOR_ADDR,
+        //         sequence: height as u64,
+        //         gas_limit,
+        //         method_num:
+        //             fendermint_actor_machinelearning::Method::PredictRandomForestClassification
+        //                 as u64,
+        //         params: predict_params,
+        //         value: Default::default(),
+        //         version: Default::default(),
+        //         gas_fee_cap: Default::default(),
+        //         gas_premium: Default::default(),
+        //     };
+
+        //     let (predict_apply_ret, _) = state.execute_implicit(predict_msg)?;
+
+        //     if let Some(err) = predict_apply_ret.failure_info {
+        //         anyhow::bail!(
+        //             "failed to apply predict_random_forest_classification_syscall message: {}",
+        //             err
+        //         );
+        //     }
 
         //     let prediction_results: Vec<i64> = predict_apply_ret
         //         .msg_receipt
@@ -975,6 +977,45 @@ where
         //         .unwrap();
 
         //     tracing::info!("the prediction results are: {:?}", prediction_results);
+        // }
+
+        // {
+        //     tracing::info!("Running cid data extraction test");
+
+        //     let cid: Cid = Cid::from_str("QmNNk75KMEKForFVYG2SYBgdQWSsUePUxkNWVNo8Xjvd5b").unwrap();
+        //     let params = fvm_ipld_encoding::RawBytes::serialize(
+        //         fendermint_actor_machinelearning::ExtractCidDataParams { cid },
+        //     )?;
+
+        //     let msg = FvmMessage {
+        //         from: system::SYSTEM_ACTOR_ADDR,
+        //         to: machinelearning::MACHINELEARNING_ACTOR_ADDR,
+        //         sequence: height as u64,
+        //         gas_limit,
+        //         method_num: fendermint_actor_machinelearning::Method::ExtractCidData as u64,
+        //         params,
+        //         value: Default::default(),
+        //         version: Default::default(),
+        //         gas_fee_cap: Default::default(),
+        //         gas_premium: Default::default(),
+        //     };
+
+        //     let (apply_ret, _) = state.execute_implicit(msg)?;
+
+        //     if let Some(err) = apply_ret.failure_info {
+        //         anyhow::bail!("failed to apply customsyscall message: {}", err);
+        //     }
+
+        //     let val: Vec<Vec<i64>> = apply_ret.msg_receipt.return_data.deserialize().unwrap();
+        //     tracing::info!(
+        //         "machinelearning actor address: {}",
+        //         machinelearning::MACHINELEARNING_ACTOR_ADDR
+        //     );
+
+        //     tracing::info!(
+        //         "mlsyscall actor extract_cid_data method returned: {:?}",
+        //         val
+        //     );
         // }
 
         let ret = FvmApplyRet {
