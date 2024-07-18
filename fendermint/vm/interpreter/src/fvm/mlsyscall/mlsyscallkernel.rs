@@ -92,7 +92,12 @@ pub trait MLSyscallKernel: Kernel {
         model: &[u8],
         test_data: &[u8],
     ) -> Result<RawBytes>;
-    fn extract_cid_data_syscall(&self, cid: Cid) -> Result<RawBytes>;
+    fn extract_cid_data_syscall(
+        &self,
+        cid: Cid,
+        data_columns: &Vec<u64>,
+        label_column: u32,
+    ) -> Result<RawBytes>;
 }
 
 // our mlsyscall kernel extends the filecoin kernel
@@ -791,18 +796,64 @@ where
     }
 
     // TODO: Make this more deterministic and improve error handling
-    fn extract_cid_data_syscall(&self, cid: Cid) -> Result<RawBytes> {
+    fn extract_cid_data_syscall(
+        &self,
+        cid: Cid,
+        data_columns: &Vec<u64>,
+        label_column: u32,
+    ) -> Result<RawBytes> {
         let response = match get(format!("https://ipfs.io/ipfs/{}", cid)) {
             Ok(resp) => resp.text().unwrap(),
-            Err(_) => return Ok(fvm_ipld_encoding::RawBytes::serialize(vec![vec![0]]).unwrap()),
+            Err(_) => {
+                return Ok(
+                    fvm_ipld_encoding::RawBytes::serialize((vec![vec![-1]], vec![-1])).unwrap(),
+                )
+            }
         };
 
-        println!("the response is: {}", response);
-
         let matrix: Vec<Vec<i64>> = serde_json::from_str(&response).unwrap();
-        // let matrix: Vec<Vec<i64>> = vec![vec![1, 1, 1], vec![2, 2, 2]];
 
-        return Ok(fvm_ipld_encoding::RawBytes::serialize(matrix).unwrap());
+        if matrix.is_empty() {
+            return Ok(fvm_ipld_encoding::RawBytes::serialize((vec![vec![-2]], vec![-2])).unwrap());
+        }
+
+        // Check if the input_data indices and label index are valid
+        let num_columns = matrix[0].len();
+        for &col_index in data_columns {
+            if col_index as usize >= num_columns {
+                return Ok(
+                    fvm_ipld_encoding::RawBytes::serialize((vec![vec![-3]], vec![-3])).unwrap(),
+                );
+            }
+        }
+        if label_column as usize >= num_columns {
+            return Ok(fvm_ipld_encoding::RawBytes::serialize((vec![vec![-4]], vec![-4])).unwrap());
+        }
+
+        // Initialize the new matrix B with the same number of rows as A
+        let mut data: Vec<Vec<i64>> = Vec::with_capacity(matrix.len());
+
+        // Initialize the new array C with the same number of rows as A
+        let mut labels: Vec<i64> = Vec::with_capacity(matrix.len());
+
+        // Iterate over each row in matrix A
+        for row in matrix {
+            // Create a new row for matrix B
+            let mut new_row: Vec<i64> = Vec::with_capacity(data_columns.len());
+
+            // Select the specified columns for the new row
+            for &col_index in data_columns {
+                new_row.push(row[col_index as usize]);
+            }
+
+            // Add the new row to matrix B
+            data.push(new_row);
+
+            // Select the value at the label index and add it to array C
+            labels.push(row[label_column as usize]);
+        }
+
+        return Ok(fvm_ipld_encoding::RawBytes::serialize((data, labels)).unwrap());
     }
 }
 
@@ -1523,6 +1574,9 @@ pub fn extract_cid_data_syscall(
     cid_length: u32,
     output_offset: u32,
     output_length: u32,
+    data_indices_offset: u32,
+    data_indices_length: u32,
+    label_index: u32,
 ) -> Result<u32> {
     // Check the digest bounds first so we don't do any work if they're incorrect.
     context.memory.check_bounds(output_offset, output_length)?;
@@ -1536,7 +1590,19 @@ pub fn extract_cid_data_syscall(
     )
     .unwrap();
 
-    let ser_result_raw = context.kernel.extract_cid_data_syscall(data_cid)?;
+    let data_indices_bytes_array = context
+        .memory
+        .try_slice(data_indices_offset, data_indices_length)?;
+
+    let data_indices_array: Vec<u64> = fvm_ipld_encoding::RawBytes::deserialize(
+        &fvm_ipld_encoding::RawBytes::new(Vec::from(data_indices_bytes_array)),
+    )
+    .unwrap();
+
+    let ser_result_raw =
+        context
+            .kernel
+            .extract_cid_data_syscall(data_cid, &data_indices_array, label_index)?;
 
     let ser_result: &[u8] = ser_result_raw.bytes();
 

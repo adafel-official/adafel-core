@@ -105,6 +105,14 @@ pub struct PredictRandomForestClassificationParams {
 #[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
 pub struct ExtractCidDataParams {
     pub cid: Cid,
+    pub train_indices: Vec<i64>,
+    pub label_index: u32,
+}
+
+#[derive(Default, Debug, Serialize_tuple, Deserialize_tuple)]
+pub struct ExtractCidDataReturnData {
+    pub data: Vec<Vec<i64>>,
+    pub label: Vec<i64>,
 }
 
 #[derive(FromPrimitive)]

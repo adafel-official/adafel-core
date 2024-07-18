@@ -3,6 +3,7 @@
 
 use anyhow::Context;
 use async_trait::async_trait;
+use fendermint_actor_machinelearning::ExtractCidDataReturnData;
 use std::{collections::HashMap, slice::from_raw_parts};
 
 use fendermint_vm_actor_interface::{chainmetadata, cron, machinelearning, system};
@@ -979,44 +980,51 @@ where
         //     tracing::info!("the prediction results are: {:?}", prediction_results);
         // }
 
-        // {
-        //     tracing::info!("Running cid data extraction test");
+        {
+            tracing::info!("Running cid data extraction test");
 
-        //     let cid: Cid = Cid::from_str("QmNNk75KMEKForFVYG2SYBgdQWSsUePUxkNWVNo8Xjvd5b").unwrap();
-        //     let params = fvm_ipld_encoding::RawBytes::serialize(
-        //         fendermint_actor_machinelearning::ExtractCidDataParams { cid },
-        //     )?;
+            let cid: Cid = Cid::from_str("QmNNk75KMEKForFVYG2SYBgdQWSsUePUxkNWVNo8Xjvd5b").unwrap();
+            let train_indices: Vec<i64> = vec![0, 1];
+            let label_index: u32 = 2;
+            let params = fvm_ipld_encoding::RawBytes::serialize(
+                fendermint_actor_machinelearning::ExtractCidDataParams {
+                    cid,
+                    train_indices,
+                    label_index,
+                },
+            )?;
 
-        //     let msg = FvmMessage {
-        //         from: system::SYSTEM_ACTOR_ADDR,
-        //         to: machinelearning::MACHINELEARNING_ACTOR_ADDR,
-        //         sequence: height as u64,
-        //         gas_limit,
-        //         method_num: fendermint_actor_machinelearning::Method::ExtractCidData as u64,
-        //         params,
-        //         value: Default::default(),
-        //         version: Default::default(),
-        //         gas_fee_cap: Default::default(),
-        //         gas_premium: Default::default(),
-        //     };
+            let msg = FvmMessage {
+                from: system::SYSTEM_ACTOR_ADDR,
+                to: machinelearning::MACHINELEARNING_ACTOR_ADDR,
+                sequence: height as u64,
+                gas_limit,
+                method_num: fendermint_actor_machinelearning::Method::ExtractCidData as u64,
+                params,
+                value: Default::default(),
+                version: Default::default(),
+                gas_fee_cap: Default::default(),
+                gas_premium: Default::default(),
+            };
 
-        //     let (apply_ret, _) = state.execute_implicit(msg)?;
+            let (apply_ret, _) = state.execute_implicit(msg)?;
 
-        //     if let Some(err) = apply_ret.failure_info {
-        //         anyhow::bail!("failed to apply customsyscall message: {}", err);
-        //     }
+            if let Some(err) = apply_ret.failure_info {
+                anyhow::bail!("failed to apply customsyscall message: {}", err);
+            }
 
-        //     let val: Vec<Vec<i64>> = apply_ret.msg_receipt.return_data.deserialize().unwrap();
-        //     tracing::info!(
-        //         "machinelearning actor address: {}",
-        //         machinelearning::MACHINELEARNING_ACTOR_ADDR
-        //     );
+            let val: ExtractCidDataReturnData =
+                apply_ret.msg_receipt.return_data.deserialize().unwrap();
+            tracing::info!(
+                "machinelearning actor address: {}",
+                machinelearning::MACHINELEARNING_ACTOR_ADDR
+            );
 
-        //     tracing::info!(
-        //         "mlsyscall actor extract_cid_data method returned: {:?}",
-        //         val
-        //     );
-        // }
+            tracing::info!(
+                "mlsyscall actor extract_cid_data method returned: {:?}",
+                val
+            );
+        }
 
         let ret = FvmApplyRet {
             apply_ret,

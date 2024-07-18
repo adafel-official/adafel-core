@@ -13,14 +13,15 @@ use fvm_shared::sys::out;
 use std::cmp;
 
 use crate::{
-    ExtractCidDataParams, Method, PredictDecisionTreeClassificationParams,
-    PredictDecisionTreeRegressionParams, PredictKNNClassificationParams,
-    PredictKNNRegressionParams, PredictLinearRegressionParams, PredictLogisticRegressionParams,
-    PredictRandomForestClassificationParams, PredictRandomForestRegressionParams,
-    TrainDecisionTreeClassificationParams, TrainDecisionTreeRegressionParams,
-    TrainKNNClassificationParams, TrainKNNRegressionParams, TrainLinearRegressionParams,
-    TrainLogisticRegressionParams, TrainRandomForestClassificationParams,
-    TrainRandomForestRegressionParams, MACHINELEARNING_ACTOR_NAME,
+    ExtractCidDataParams, ExtractCidDataReturnData, Method,
+    PredictDecisionTreeClassificationParams, PredictDecisionTreeRegressionParams,
+    PredictKNNClassificationParams, PredictKNNRegressionParams, PredictLinearRegressionParams,
+    PredictLogisticRegressionParams, PredictRandomForestClassificationParams,
+    PredictRandomForestRegressionParams, TrainDecisionTreeClassificationParams,
+    TrainDecisionTreeRegressionParams, TrainKNNClassificationParams, TrainKNNRegressionParams,
+    TrainLinearRegressionParams, TrainLogisticRegressionParams,
+    TrainRandomForestClassificationParams, TrainRandomForestRegressionParams,
+    MACHINELEARNING_ACTOR_NAME,
 };
 use cid::Cid;
 
@@ -156,12 +157,15 @@ fvm_sdk::sys::fvm_syscalls! {
       model_offset: u32,
       model_length: u32,
     ) -> Result<u32>;
-    pub fn extract_cid_data_syscall(
+    fn extract_cid_data_syscall(
       cid_offset: u32,
       cid_length: u32,
       output_offset: u32,
       output_length: u32,
-    ) -> Result<u32>;
+      data_indices_offset: u32,
+      data_indices_length: u32,
+      label_index: u32,
+  ) -> Result<u32>;
 }
 
 pub struct Actor;
@@ -799,7 +803,7 @@ impl Actor {
     fn extract_cid_data(
         rt: &impl Runtime,
         params: ExtractCidDataParams,
-    ) -> Result<Vec<Vec<i64>>, ActorError> {
+    ) -> Result<ExtractCidDataReturnData, ActorError> {
         rt.validate_immediate_caller_accept_any()?;
 
         unsafe {
@@ -811,19 +815,27 @@ impl Actor {
             let cid_offset = array.bytes().as_ptr() as u32;
             let cid_length: u32 = array.bytes().len() as u32;
 
+            let column_indices_array =
+                fvm_ipld_encoding::RawBytes::serialize(params.train_indices).unwrap();
+            let column_indices_offset = column_indices_array.bytes().as_ptr() as u32;
+            let column_indices_length = column_indices_array.len() as u32;
+
             let mut output_raw: Vec<u8> = vec![0; output_length];
             let value: u32 = extract_cid_data_syscall(
                 cid_offset,
                 cid_length,
                 output_raw.as_ptr() as u32,
                 output_length as u32,
+                column_indices_offset,
+                column_indices_length,
+                params.label_index,
             )
             .unwrap();
 
             let mut result_raw: Vec<u8> = vec![0; value as usize];
             result_raw.copy_from_slice(&output_raw[..(value as usize)]);
 
-            let result: Vec<Vec<i64>> = fvm_ipld_encoding::RawBytes::deserialize(
+            let result: ExtractCidDataReturnData = fvm_ipld_encoding::RawBytes::deserialize(
                 &fvm_ipld_encoding::RawBytes::new(result_raw),
             )
             .unwrap();
